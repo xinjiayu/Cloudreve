@@ -24,8 +24,8 @@ class Callback extends Controller{
 	}
 
 	public function Oss(){
+		//trace('日志信息OSS','error');
 		ob_end_clean();
-		error_log("sadasdasdsadsasadasasdasdasd");
 		header('Content-Type: application/json');
 		$handllerObj = new CallbackHandler(file_get_contents("php://input"));
 		$handllerObj -> ossHandler(Request::instance()->header('Authorization'),Request::instance()->header('x-oss-pub-key-url'));

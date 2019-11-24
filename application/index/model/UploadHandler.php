@@ -26,6 +26,8 @@ class UploadHandler extends Model{
 	public $upyunPolicy;
 	public $s3Policy;
 	public $s3Sign;
+	public $cosPolicy;
+	public $cosSign;
 	public $dirName;
 	public $s3Credential;
 	public $siteUrl;
@@ -58,7 +60,7 @@ class UploadHandler extends Model{
 			$this->setError("空间容量不足",false);
 		}
 		FileManage::storageCheckOut($this->userId,$chunkSize);
-		if($chunkSize >=4195304){
+		if($chunkSize >config('upload.chunk_size')){
 			$this->setError("分片错误",false);
 		}
 		$chunkObj=fopen (ROOT_PATH . 'public/uploads/chunks/'.$this->chunkData["obj_name"].".chunk","w+");
@@ -198,8 +200,8 @@ class UploadHandler extends Model{
 			if(!$fileObj || !$chunkObj){
 				$this->setError("文件创建失败",false);
 			}
-			$content = fread($chunkObj, 4195304);
-			fwrite($fileObj, $content, 4195304);
+			$content = fread($chunkObj, config('upload.chunk_size'));
+			fwrite($fileObj, $content, config('upload.chunk_size'));
 			unset($content);
 			fclose($chunkObj);
 			unlink(ROOT_PATH . 'public/uploads/chunks/'.$value["obj_name"].".chunk");
@@ -296,7 +298,7 @@ class UploadHandler extends Model{
 		return rtrim($returnValue, ",");
 	}
 
-	public function getToken(){
+	public function getToken($getData){
 		switch ($this->policyContent['policy_type']) {
 			case 'qiniu':
 				return $this->getQiniuToken();
@@ -311,13 +313,16 @@ class UploadHandler extends Model{
 				return $this->getOssToken();
 				break;
 			case 'upyun':
-				return $this->getUpyunToken();
+				return $this->getUpyunToken($getData);
 				break;
 			case 's3':
 				return $this->getS3Token();
 				break;
 			case 'remote':
 				return $this->getRemoteToken();
+				break;
+			case 'cos':
+				return $this->getCosToken();
 				break;
 			default:
 				# code...
@@ -428,7 +433,7 @@ class UploadHandler extends Model{
 	}
 
 
-	public function getUpyunToken(){
+	public function getUpyunToken($getData){
 		$callbackKey = $this->getRandomKey();
 		$sqlData = [
 		'callback_key' => $callbackKey,
@@ -444,8 +449,9 @@ class UploadHandler extends Model{
 			"notify-url" => $options["siteURL"]."Callback/Upyun",
 			"content-length-range" =>"0,".$this->policyContent['max_size'],
 			"date" => $dateNow,
+			'content-length'=> (int)$getData["length"],
 			"ext-param"=>json_encode([
-				"path"=>cookie("path"),
+				"path"=> cookie("path_tmp"),
 				"uid" => $this->userId,
 				"pid" => $this->policyId,
 				]),
@@ -512,6 +518,27 @@ class UploadHandler extends Model{
 		$this->s3Credential = $credential;
 		$this->x_amz_date = $longDate;
 		$this->callBackKey = $callbackKey;
+	}
+
+	public function getCosToken(){
+		$callbackKey = $this->getRandomKey();
+		$sqlData = [
+			'callback_key' => $callbackKey,
+			'pid' => $this->policyId,
+			'uid' => $this->userId
+		];
+		Db::name('callback')->insert($sqlData);
+		$dirName = $this->getObjName($this->policyContent['dirrule']);
+		$returnValu["expiration"] = date("Y-m-d",time()+1800)."T".date("H:i:s",time()+1800).".000Z";
+		$returnValu["conditions"][0]["bucket"] = $this->policyContent['bucketname'];
+		$returnValu["conditions"][1][0]="starts-with";
+		$returnValu["conditions"][1][1]='$key';
+		if($this->policyContent["autoname"]){
+			$this->ossFileName = $dirName.(empty($dirName)?"":"/").$this->getObjName($this->policyContent['namerule'],"oss");;
+		}else{
+			$this->ossFileName = $dirName.(empty($dirName)?"":"/").'${filename}';
+		}
+		$returnValu["conditions"][2]=["content-length-range",1,(int)$this->policyContent['max_size']];
 	}
 
 	public function getOssToken(){

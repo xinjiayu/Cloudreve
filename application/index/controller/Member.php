@@ -14,17 +14,11 @@ class Member extends Controller{
 
 	public $userObj;
 
-	/**
-	 * [index description]
-	 * @return [type] [description]
-	 */
+
 	public function index(){
 		echo "Pong";
 	}
 
-	/**
-	 * [Register description]
-	 */
 	public function Register(){
 		if(input('?post.username-reg') && input('?post.password-reg')){
 			$regAction = User::register(input('post.username-reg'),input('post.password-reg'),input('post.captchaCode'));
@@ -51,9 +45,6 @@ class Member extends Controller{
 		}
 	}
 
-	/**
-	 * [Login description]
-	 */
 	public function Login(){
 		if(input('?post.userMail') && input('?post.userPass')){
 			$logAction = User::login(input('post.userMail'),input('post.userPass'),input('post.captchaCode'));
@@ -67,9 +58,6 @@ class Member extends Controller{
 		}
 	}
 
-	/**
-	 * [LogOut description]
-	 */
 	public function LogOut(){
 		$this->userObj = new User(cookie('user_id'),cookie('login_key'));
 		$this->userObj->clear();
@@ -82,13 +70,36 @@ class Member extends Controller{
 		$this->userObj->getMemory();
 	}
 
+	public function SignUp(){
+		$this->userObj = new User(cookie('user_id'),cookie('login_key'));
+		$this->isLoginStatusCheck();
+		return view('login', [
+			'options'  => Option::getValues(['basic'],$this->userObj->userSQLData),
+			'RegOptions'  => Option::getValues(['register','login']),
+			'loginStatus' => $this->userObj->loginStatus,
+			'pageId' => "register",
+		]);
+	}
+
+	public function FindPwd(){
+		$this->userObj = new User(cookie('user_id'),cookie('login_key'));
+		$this->isLoginStatusCheck();
+		return view('login', [
+			'options'  => Option::getValues(['basic'],$this->userObj->userSQLData),
+			'RegOptions'  => Option::getValues(['register','login']),
+			'loginStatus' => $this->userObj->loginStatus,
+			'pageId' => "resetPwd",
+		]);
+	}
+
 	public function LoginForm(){
 		$this->userObj = new User(cookie('user_id'),cookie('login_key'));
 		$this->isLoginStatusCheck();
 		return view('login', [
-			'options'  => Option::getValues(['basic']),
+			'options'  => Option::getValues(['basic'],$this->userObj->userSQLData),
 			'RegOptions'  => Option::getValues(['register','login']),
 			'loginStatus' => $this->userObj->loginStatus,
+			'pageId' => "login",
 		]);
 	} 
 
@@ -114,10 +125,11 @@ class Member extends Controller{
 	public function TwoStep(){
 		$this->userObj = new User(cookie('user_id'),cookie('login_key'));
 		$this->isLoginStatusCheck();
-		return view('two_step', [
-			'options'  => Option::getValues(['basic']),
+		return view('login', [
+			'options'  => Option::getValues(['basic'],$this->userObj->userSQLData),
 			'RegOptions'  => Option::getValues(['register','login']),
 			'loginStatus' => $this->userObj->loginStatus,
+			'pageId' => "TwoStep",
 		]);
 	}
 
@@ -133,14 +145,16 @@ class Member extends Controller{
 
 	public function emailActivate(){
 		$activationKey = input('param.key');
-		$basicOptions = Option::getValues(['basic']);
 		$this->userObj = new User(cookie('user_id'),cookie('login_key'));
 		$this->isLoginStatusCheck();
+		$basicOptions = Option::getValues(['basic','register','login'],$this->userObj->userSQLData);
 		$activeAction = User::activicateUser($activationKey);
 		if($activeAction[0]){
-			return view('active_user', [
+			return view('login', [
 			'options'  => $basicOptions,
+			'RegOptions'  => $basicOptions,
 			'loginStatus' => $this->userObj->loginStatus,
+			'pageId' => "emailActivate",
 		]);
 		}else{
 			$this->error($activeAction[1],403,$basicOptions);
@@ -150,15 +164,17 @@ class Member extends Controller{
 	public function resetPwd(){
 		$resetKey = input('param.key');
 		$userId = input('get.uid');
-		$basicOptions = Option::getValues(['basic']);
 		$this->userObj = new User(cookie('user_id'),cookie('login_key'));
+		$basicOptions = Option::getValues(['basic','register','login'],$this->userObj->userSQLData);
 		$this->isLoginStatusCheck();
 		$resetAction = User::resetUser($resetKey,$userId);
 		if($resetAction[0]){
-			return view('reset_user', [
+			return view('login', [
 			'options'  => $basicOptions,
+			'RegOptions'  => $basicOptions,
 			'loginStatus' => $this->userObj->loginStatus,
 			'key' => $resetKey."_".$userId,
+			'pageId' => "resetPwdForm",
 		]);
 		}else{
 			$this->error($resetAction[1],403,$basicOptions);
@@ -185,7 +201,7 @@ class Member extends Controller{
 			$policyList[$key] = $value;
 		}
 		$avaliablePolicy = Db::name("policy")->where("id","in",$policyList)->select();
-		$basicOptions = Option::getValues(['basic']);
+		$basicOptions = Option::getValues(['basic'],$this->userObj->userSQLData);
 		return view('setting', [
 			'options'  => $basicOptions,
 			'userInfo' => $userInfo,
@@ -229,6 +245,17 @@ class Member extends Controller{
 		$userInfo = $this->userObj->getInfo();
 		$this->loginStatusCheck();
 		$saveAction = $this->userObj->changeNick(input("post.nick"));
+		if($saveAction[0]){
+			return json(['error' => '200','msg' => '设置成功']);
+		}else{
+			return json(['error' => '1','msg' => $saveAction[1]]);
+		}
+	}
+
+	public function ChangeThemeColor(){
+		$this->userObj = new User(cookie('user_id'),cookie('login_key'));
+		$this->loginStatusCheck();
+		$saveAction = $this->userObj->changeOption("preferTheme",input("post.theme"));
 		if($saveAction[0]){
 			return json(['error' => '200','msg' => '设置成功']);
 		}else{

@@ -3,8 +3,6 @@ namespace app\index\model;
 
 use think\Model;
 use think\Db;
-use \think\Session;
-use \think\Cookie;
 use \app\index\model\Option;
 use \app\index\model\Mail;
 use think\Validate;
@@ -97,7 +95,7 @@ class User extends Model{
 		}
 		$userName = str_replace(" ", "", $userEmail);
 		$passWord = $userPass;
-		if ( !filter_var($userName,FILTER_VALIDATE_EMAIL) || (mb_strlen($userName,'UTF8')>22) || (mb_strlen($userName,'UTF8')<4) || (mb_strlen($passWord,'UTF8')>64) || (mb_strlen($passWord,'UTF8')<4)){
+		if ( !filter_var($userName,FILTER_VALIDATE_EMAIL) || (mb_strlen($userName,'UTF8')>32) || (mb_strlen($userName,'UTF8')<4) || (mb_strlen($passWord,'UTF8')>64) || (mb_strlen($passWord,'UTF8')<4)){
 			return [false,"邮箱或密码不符合规范"];
 		}
 		if(Db::name('users')->where('user_email',$userName)->find() !=null){
@@ -127,6 +125,7 @@ class User extends Model{
 			'delay_time' =>0,
 			'avatar' => "default",
 			'profile' => true,
+			'options' => "{}",
 		];
 		if(Db::name('users')->insert($sqlData)){
 			$userId = Db::name('users')->getLastInsID();
@@ -353,6 +352,13 @@ class User extends Model{
 			Db::name("users")->where("id",$this->uid)->update(["user_nick" => $nick["nick"]]);
 			return [1,1];
 		}
+	}
+
+	public function changeOption($optionKey,$optionValue){
+		$options = json_decode($this->userSQLData["options"],true);
+		$options[$optionKey] = $optionValue;
+		Db::name("users")->where("id",$this->uid)->update(["options" => json_encode($options)]);
+		return [1,1];
 	}
 
 	public function changePwd($origin,$new){
